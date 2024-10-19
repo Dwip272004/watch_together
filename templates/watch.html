@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Watch Video</title>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        #controls {
+            display: none; /* Initially hide controls */
+        }
+    </style>
 </head>
 <body>
     <h1>Watch Video</h1>
@@ -12,11 +17,22 @@
         <source src="{{ url_for('uploaded_video', filename=video) }}" type="video/mp4">
         Your browser does not support the video tag.
     </video>
+    
+    <div id="controls">
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+    </div>
+
     <script>
         const socket = io();
 
         const roomCode = "{{ room_code }}";
         const videoPlayer = document.getElementById('videoPlayer');
+        const controls = document.getElementById('controls');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const creatorUsername = "{{ creator_username }}";  // Pass creator's username to JS
+        const currentUsername = prompt("Please enter your username:");  // Ask for the current user's username
 
         // Join the room
         socket.emit('join', { room_code: roomCode });
@@ -25,14 +41,19 @@
             console.log('User joined room: ' + data.room_code);
         });
 
+        // Show controls only for the creator
+        if (currentUsername === creatorUsername) {
+            controls.style.display = 'block'; // Show controls if user is the creator
+        }
+
         // Play video
-        videoPlayer.addEventListener('play', () => {
-            socket.emit('play_video', { room_code: roomCode });
+        playBtn.addEventListener('click', () => {
+            socket.emit('control_video', { room_code: roomCode, action: 'play', creator_username: creatorUsername, current_username: currentUsername });
         });
 
         // Pause video
-        videoPlayer.addEventListener('pause', () => {
-            socket.emit('pause_video', { room_code: roomCode });
+        pauseBtn.addEventListener('click', () => {
+            socket.emit('control_video', { room_code: roomCode, action: 'pause', creator_username: creatorUsername, current_username: currentUsername });
         });
 
         // Seek video
@@ -53,6 +74,11 @@
         // Handle seek event from other users
         socket.on('seek_video', (data) => {
             videoPlayer.currentTime = data.currentTime;
+        });
+
+        // Handle error for non-creators trying to control playback
+        socket.on('error', (data) => {
+            console.error(data.message); // Log error message
         });
     </script>
 </body>
