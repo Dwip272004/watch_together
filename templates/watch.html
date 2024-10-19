@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Video</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Watch Video</h1>
+    <video id="videoPlayer" width="640" controls>
+        <source src="{{ url_for('uploaded_video', filename=video) }}" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <script>
+        const socket = io();
+
+        const roomCode = "{{ room_code }}";
+        const videoPlayer = document.getElementById('videoPlayer');
+
+        // Join the room
+        socket.emit('join', { room_code: roomCode });
+
+        socket.on('user_joined', (data) => {
+            console.log('User joined room: ' + data.room_code);
+        });
+
+        // Play video
+        videoPlayer.addEventListener('play', () => {
+            socket.emit('play_video', { room_code: roomCode });
+        });
+
+        // Pause video
+        videoPlayer.addEventListener('pause', () => {
+            socket.emit('pause_video', { room_code: roomCode });
+        });
+
+        // Seek video
+        videoPlayer.addEventListener('seeked', () => {
+            socket.emit('seek_video', { room_code: roomCode, currentTime: videoPlayer.currentTime });
+        });
+
+        // Handle play event from other users
+        socket.on('play_video', () => {
+            videoPlayer.play();
+        });
+
+        // Handle pause event from other users
+        socket.on('pause_video', () => {
+            videoPlayer.pause();
+        });
+
+        // Handle seek event from other users
+        socket.on('seek_video', (data) => {
+            videoPlayer.currentTime = data.currentTime;
+        });
+    </script>
+</body>
+</html>
