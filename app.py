@@ -19,16 +19,12 @@ DATABASE_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'videos
 
 # SQLite database setup
 def init_db():
-    with app.app_context():  # Ensure the app context is active
-        conn = sqlite3.connect(DATABASE_PATH)
+    with sqlite3.connect(DATABASE_PATH) as conn:
         cursor = conn.cursor()
 
         # Create tables for videos and rooms
         cursor.execute('''CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS rooms (id INTEGER PRIMARY KEY AUTOINCREMENT, room_code TEXT UNIQUE, video_filename TEXT)''')
-
-        conn.commit()
-        conn.close()
 
 # Home route to display the create/join options
 @app.route('/')
@@ -61,12 +57,10 @@ def create_room():
             room_code = str(random.randint(1000, 9999))
 
             # Store the room and video information in the database
-            with app.app_context():  # Ensure the app context is active
-                conn = sqlite3.connect(DATABASE_PATH)
+            with sqlite3.connect(DATABASE_PATH) as conn:
                 cursor = conn.cursor()
                 cursor.execute('INSERT INTO rooms (room_code, video_filename) VALUES (?, ?)', (room_code, filename))
                 conn.commit()
-                conn.close()
 
             # Redirect to the watch room with the generated code
             return redirect(url_for('watch_room', room_code=room_code))
@@ -80,12 +74,10 @@ def join_room_route():
         room_code = request.form['room_code']
 
         # Check if the room code exists
-        with app.app_context():  # Ensure the app context is active
-            conn = sqlite3.connect(DATABASE_PATH)
+        with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
             room = cursor.fetchone()
-            conn.close()
 
         if room:
             return redirect(url_for('watch_room', room_code=room_code))
@@ -98,12 +90,10 @@ def join_room_route():
 @app.route('/watch/<room_code>')
 def watch_room(room_code):
     # Get the video associated with the room code
-    with app.app_context():  # Ensure the app context is active
-        conn = sqlite3.connect(DATABASE_PATH)
+    with sqlite3.connect(DATABASE_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
         room = cursor.fetchone()
-        conn.close()
 
     if room:
         return render_template('watch.html', video=room[0], room_code=room_code)
