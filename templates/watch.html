@@ -13,7 +13,7 @@
 </head>
 <body>
     <h1>Watch Video</h1>
-    <video id="videoPlayer" width="640">
+    <video id="videoPlayer" width="640" controls>
         <source src="{{ url_for('uploaded_video', filename=video) }}" type="video/mp4">
         Your browser does not support the video tag.
     </video>
@@ -45,20 +45,15 @@
             videoPlayer.controls = true; // Enable controls for the creator
         } else {
             videoPlayer.controls = false; // Disable built-in video controls for non-creators
-            videoPlayer.addEventListener('play', (event) => {
-                event.preventDefault();
-                // Optionally show an alert or feedback to the user
-                alert("You cannot control the video.");
-            });
         }
 
         // Play video
-        playBtn.addEventListener('click', () => {
+        document.getElementById('playBtn').addEventListener('click', () => {
             socket.emit('control_video', { room_code: roomCode, action: 'play', creator_username: creatorUsername, current_username: currentUsername });
         });
 
         // Pause video
-        pauseBtn.addEventListener('click', () => {
+        document.getElementById('pauseBtn').addEventListener('click', () => {
             socket.emit('control_video', { room_code: roomCode, action: 'pause', creator_username: creatorUsername, current_username: currentUsername });
         });
 
