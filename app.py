@@ -153,16 +153,20 @@ def on_join(data):
 @socketio.on('control_video')
 def control_video(data):
     room_code = data['room_code']
-    creator_username = data['creator_username']
+    action = data['action']
     current_username = data['current_username']
+    creator_username = data['creator_username']
+    
+    # Check if the current user is the creator
+    if current_username != creator_username:
+        emit('error', {'message': 'You do not have permission to control the video.'}, room=request.sid)
+        return
+    
+    if action == 'play':
+        emit('play_video', room=room_code, broadcast=True)
+    elif action == 'pause':
+        emit('pause_video', room=room_code, broadcast=True)
 
-    if current_username == creator_username:
-        if data['action'] == 'play':
-            emit('play_video', room=room_code, broadcast=True)
-        elif data['action'] == 'pause':
-            emit('pause_video', room=room_code, broadcast=True)
-    else:
-        emit('error', {'message': 'Only the creator can control playback.'}, room=current_username)
 
 if __name__ == '__main__':
     init_db()  # Initialize the SQLite database
