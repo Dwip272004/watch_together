@@ -162,6 +162,7 @@ def control_video(data):
         emit('error', {'message': 'You do not have permission to control the video.'}, room=request.sid)
         return
     
+    # If the action is valid, emit the respective control events
     if action == 'play':
         emit('play_video', room=room_code, broadcast=True)
     elif action == 'pause':
