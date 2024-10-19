@@ -5,13 +5,12 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from flask_socketio import SocketIO, emit, join_room
 from werkzeug.utils import secure_filename
 from gevent.pywsgi import WSGIServer  # Import Gevent's WSGI server
-from gevent import monkey  # Import Gevent monkey patching
 
 # Initialize the Flask app and SocketIO
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'videos')
 app.secret_key = 'falcons'
-socketio = SocketIO(app, async_mode='gevent')  # Specify Gevent as the async mode
+socketio = SocketIO(app)
 
 # Get the absolute path for the SQLite database
 DATABASE_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'videos.db')
@@ -23,8 +22,20 @@ def init_db():
         cursor = conn.cursor()
 
         # Create tables for videos and rooms
-        cursor.execute('''CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS rooms (id INTEGER PRIMARY KEY AUTOINCREMENT, room_code TEXT UNIQUE, video_filename TEXT)''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS videos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                filename TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                room_code TEXT UNIQUE, 
+                video_filename TEXT, 
+                creator_username TEXT
+            )
+        ''')  # Updated table to include creator_username
 
         conn.commit()
         conn.close()
@@ -38,6 +49,8 @@ def index():
 @app.route('/create', methods=['GET', 'POST'])
 def create_room():
     if request.method == 'POST':
+        creator_username = request.form.get('username')  # Get the creator's username
+
         if 'video' not in request.files:
             return jsonify({'error': 'No video file provided'}), 400
 
@@ -63,7 +76,8 @@ def create_room():
             with app.app_context():  # Ensure the app context is active
                 conn = sqlite3.connect(DATABASE_PATH)
                 cursor = conn.cursor()
-                cursor.execute('INSERT INTO rooms (room_code, video_filename) VALUES (?, ?)', (room_code, filename))
+                cursor.execute('INSERT INTO rooms (room_code, video_filename, creator_username) VALUES (?, ?, ?)', 
+                               (room_code, filename, creator_username))  # Save creator_username
                 conn.commit()
                 conn.close()
 
@@ -82,7 +96,7 @@ def join_room_route():
         with app.app_context():  # Ensure the app context is active
             conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
-            cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
+            cursor.execute('SELECT video_filename, creator_username FROM rooms WHERE room_code = ?', (room_code,))
             room = cursor.fetchone()
             conn.close()
 
@@ -100,12 +114,13 @@ def watch_room(room_code):
     with app.app_context():  # Ensure the app context is active
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
-        cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
+        cursor.execute('SELECT video_filename, creator_username FROM rooms WHERE room_code = ?', (room_code,))
         room = cursor.fetchone()
         conn.close()
 
     if room:
-        return render_template('watch.html', video=room[0], room_code=room_code)
+        video_filename, creator_username = room
+        return render_template('watch.html', video=video_filename, room_code=room_code, creator_username=creator_username)
     else:
         return jsonify({'error': 'Room not found'}), 404
 
@@ -133,6 +148,21 @@ def on_join(data):
     room_code = data['room_code']
     join_room(room_code)
     emit('user_joined', {'room_code': room_code}, room=room_code)
+
+# Additional logic to handle playback control by creator only
+@socketio.on('control_video')
+def control_video(data):
+    room_code = data['room_code']
+    creator_username = data['creator_username']
+    current_username = data['current_username']
+
+    if current_username == creator_username:
+        if data['action'] == 'play':
+            emit('play_video', room=room_code, broadcast=True)
+        elif data['action'] == 'pause':
+            emit('pause_video', room=room_code, broadcast=True)
+    else:
+        emit('error', {'message': 'Only the creator can control playback.'}, room=current_username)
 
 if __name__ == '__main__':
     init_db()  # Initialize the SQLite database
