@@ -130,4 +130,6 @@ def on_join(data):
 
 if __name__ == '__main__':
     init_db()  # Initialize the SQLite database
-    socketio.run(app, debug=True)
+    port = int(os.environ.get('PORT', 5000))  # Get the port from environment variables or use 5000
+    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+
