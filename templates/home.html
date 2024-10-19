@@ -4,10 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Watch Together</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        a {
+            display: inline-block;
+            margin: 20px;
+            padding: 15px 25px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        a:hover {
+            background-color: #0056b3;
+        }
+        footer {
+            margin-top: 40px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
 </head>
+
 <body>
     <h1>Watch Together</h1>
     <a href="{{ url_for('create_room') }}">Create Room</a>
-    <a href="{{ url_for('join_room') }}">Join Room</a>
+    <a href="{{ url_for('join_room_route') }}">Join Room</a>
+
+    <footer>
+        <p>&copy; 2024 Watch Together. All rights reserved.</p>
+    </footer>
 </body>
 </html>
