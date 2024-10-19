@@ -1,30 +1,33 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 import sqlite3
 import random
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify
 from flask_socketio import SocketIO, emit, join_room
 from werkzeug.utils import secure_filename
+from gevent.pywsgi import WSGIServer  # Import Gevent's WSGI server
+from gevent import monkey  # Import Gevent monkey patching
 
 # Initialize the Flask app and SocketIO
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'videos')
 app.secret_key = 'falcons'
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='gevent')  # Specify Gevent as the async mode
 
 # Get the absolute path for the SQLite database
 DATABASE_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'videos.db')
 
 # SQLite database setup
 def init_db():
-    with sqlite3.connect(DATABASE_PATH) as conn:
+    with app.app_context():  # Ensure the app context is active
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
 
         # Create tables for videos and rooms
         cursor.execute('''CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS rooms (id INTEGER PRIMARY KEY AUTOINCREMENT, room_code TEXT UNIQUE, video_filename TEXT)''')
+
+        conn.commit()
+        conn.close()
 
 # Home route to display the create/join options
 @app.route('/')
@@ -57,10 +60,12 @@ def create_room():
             room_code = str(random.randint(1000, 9999))
 
             # Store the room and video information in the database
-            with sqlite3.connect(DATABASE_PATH) as conn:
+            with app.app_context():  # Ensure the app context is active
+                conn = sqlite3.connect(DATABASE_PATH)
                 cursor = conn.cursor()
                 cursor.execute('INSERT INTO rooms (room_code, video_filename) VALUES (?, ?)', (room_code, filename))
                 conn.commit()
+                conn.close()
 
             # Redirect to the watch room with the generated code
             return redirect(url_for('watch_room', room_code=room_code))
@@ -74,10 +79,12 @@ def join_room_route():
         room_code = request.form['room_code']
 
         # Check if the room code exists
-        with sqlite3.connect(DATABASE_PATH) as conn:
+        with app.app_context():  # Ensure the app context is active
+            conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
             cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
             room = cursor.fetchone()
+            conn.close()
 
         if room:
             return redirect(url_for('watch_room', room_code=room_code))
@@ -90,10 +97,12 @@ def join_room_route():
 @app.route('/watch/<room_code>')
 def watch_room(room_code):
     # Get the video associated with the room code
-    with sqlite3.connect(DATABASE_PATH) as conn:
+    with app.app_context():  # Ensure the app context is active
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute('SELECT video_filename FROM rooms WHERE room_code = ?', (room_code,))
         room = cursor.fetchone()
+        conn.close()
 
     if room:
         return render_template('watch.html', video=room[0], room_code=room_code)
@@ -128,4 +137,5 @@ def on_join(data):
 if __name__ == '__main__':
     init_db()  # Initialize the SQLite database
     port = int(os.environ.get('PORT', 5000))  # Get the port from environment variables or use 5000
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    http_server = WSGIServer(('0.0.0.0', port), app)  # Create a WSGI server with Gevent
+    http_server.serve_forever()  # Start the server
